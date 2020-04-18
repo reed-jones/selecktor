@@ -47,12 +47,13 @@
                     type="text"
                     :id="id"
                     ref="editBox"
+                    class="rj-filter-input"
                     @focus="open"
                     @blur="close"
-                    class="rj-filter-input"
+                    :required="required && empty"
+                    :readonly="!searchable && !(required && empty)"
                     :placeholder="empty ? placeholder : ''"
                     @keydown="handleKeydown"
-                    :readonly="!searchable"
                     :value="context.filter"
                     @input="setFilter"
                 />
@@ -131,6 +132,7 @@ export default {
         id: String,
         name: String,
         placeholder: String,
+        required: Boolean,
 
         // Current Selected Value
         value: [String, Object, Array],
@@ -186,9 +188,7 @@ export default {
         },
 
         empty() {
-            return (
-                this.context.value === null && this.context.values.size === 0
-            );
+            return this.multiple ? this.context.values.size === 0 : !this.context.value
         }
     },
 

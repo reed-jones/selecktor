@@ -1,5 +1,6 @@
 <template>
     <div id="app">
+      <form>
         <label for="combo-box1">Combo Box Single</label>
         <Selektor
             placeholder="Clearable!"
@@ -19,6 +20,7 @@
             name="combo-box2"
             v-model="value"
             :options="options"
+            required
             searchable
         />
 
@@ -31,6 +33,7 @@
             v-model="values"
             :options="options"
             multiple
+            required
             :close-on-select="true"
             clearable
         />
@@ -41,9 +44,10 @@
         <Selektor
             id="combo-box4"
             name="combo-box4"
-            v-model="values"
+            v-model="values2"
             :options="options"
             multiple
+            required
             searchable
         />
 
@@ -70,6 +74,8 @@
                 <h1 @click="select" :key="option.value">{{ option.label }}</h1>
             </template>
         </Selektor>
+        <button type="submit">Submit</button>
+        </form>
     </div>
 </template>
 
@@ -90,6 +96,8 @@ export default {
     data: _ => ({
         value: options[0],
         values: options.slice(1,3),
+
+        values2: options.slice(1,3),
         options
     })
 };
