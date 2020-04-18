@@ -1,45 +1,7 @@
-import { Machine, assign } from "xstate";
-
-const focusedStates = {
-  closed: {
-    entry: ['focusElement'],
-    on: {
-      OPEN: {
-        target: "opened",
-        actions: ['clearHighlightedIndex']
-      }
-    }
-  },
-  opened: {
-    entry: ['focusElement'],
-    // exit: ['focusElement'],
-    on: {
-      CLOSE: {
-        target: "closed",
-      },
-      FILTER: {
-        target: "opened",
-        actions: "setFilter"
-      },
-      SELECT: {
-        target: "closed",
-        actions: ["setValue", "clearFilter"]
-      },
-      SELECT_MULTI: {
-        target: "opened",
-        actions: ["addValue", "clearFilter"]
-      },
-
-      SET_HIGHLIGHT_INDEX: {
-        target: 'opened',
-        actions: 'setHighlightedIndex'
-      }
-    }
-  }
-};
+import { assign, createMachine } from "./statemachine";
 
 export default (startContext = {}) =>
-  Machine(
+  createMachine(
     {
       id: "inputfield",
       initial: "unfocused",
@@ -62,26 +24,33 @@ export default (startContext = {}) =>
           actions: "clearValues"
         },
         SET_VALUE: {
-          actions: 'setValue'
+          actions: "setValue"
         },
         SET_VALUE_MULTI: {
-          actions: 'setValues'
+          actions: "setValues"
         }
       },
       states: {
         unfocused: {
           on: {
-            FOCUS: "focused",
+            FOCUS: "focused.opened",
             REMOVE_MULTI: {
               target: "focused.closed",
               actions: "removeValue"
             },
+            OPEN: {
+              target: "focused.opened"
+            }
           }
         },
         focused: {
           id: "edited",
           initial: "opened",
-          entry: ["setFocusableElement", "focusElement", 'clearHighlightedIndex'],
+          entry: [
+            "setFocusableElement",
+            "focusElement",
+            "clearHighlightedIndex"
+          ],
           on: {
             BLUR: {
               target: "unfocused",
@@ -90,9 +59,46 @@ export default (startContext = {}) =>
             REMOVE_MULTI: {
               target: "focused.closed",
               actions: "removeValue"
+            }
+          }
+        },
+        "focused.closed": {
+          entry: ["focusElement"],
+          on: {
+            OPEN: {
+              target: "focused.opened"
+            }
+          }
+        },
+        "focused.opened": {
+          entry: ["focusElement", "clearHighlightedIndex"],
+          // exit: ['focusElement'],
+          on: {
+            CLOSE: {
+              target: "focused.closed"
             },
-          },
-          states: focusedStates
+
+        OPEN: {
+          target: "focused.opened"
+        },
+            FILTER: {
+              target: "focused.opened",
+              actions: "setFilter"
+            },
+            SELECT: {
+              target: "focused.closed",
+              actions: ["setValue", "clearFilter"]
+            },
+            SELECT_MULTI: {
+              target: "focused.opened",
+              actions: ["addValue", "clearFilter"]
+            },
+
+            SET_HIGHLIGHT_INDEX: {
+              target: "focused.opened",
+              actions: "setHighlightedIndex"
+            }
+          }
         }
       }
     },
@@ -115,7 +121,10 @@ export default (startContext = {}) =>
         }),
 
         setValues: assign({
-          values: (context, event) => event.value.constructor.name === 'Set' ? event.value : new Set(event.value)
+          values: (context, event) =>
+            event.value.constructor.name === "Set"
+              ? event.value
+              : new Set(event.value)
         }),
 
         removeValue: assign({
@@ -133,7 +142,7 @@ export default (startContext = {}) =>
 
         setHighlightedIndex: assign({
           highlightIndex: (context, event) => {
-            return event.value
+            return event.value;
           }
         }),
 

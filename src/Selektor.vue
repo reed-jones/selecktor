@@ -1,11 +1,11 @@
 <template>
     <div
         class="rj-combobox"
-        :focused="current.matches('focused')"
+        :focused="current.value.startsWith('focused')"
         :class="{
             open: current.matches('focused.opened'),
             closed: current.matches('focused.closed'),
-            focused: current.matches('focused'),
+            focused: current.value.startsWith('focused'),
             unfocused: current.matches('unfocused'),
             filtered: context.filter.length,
             multiple,
@@ -49,7 +49,7 @@
                     ref="editBox"
                     class="rj-filter-input"
                     @focus="open"
-                    @blur="close"
+
                     :required="required && empty"
                     :readonly="!searchable && !(required && empty)"
                     :placeholder="empty ? placeholder : ''"
@@ -63,7 +63,7 @@
             <span @click.stop class="rj-indicator">
                 <slot
                     name="indicator"
-                    :open="current.matches('focused')"
+                    :open="current.value.startsWith('focused')"
                     :blur="blur"
                     :focus="focus"
                     :clear="clear"
@@ -114,7 +114,7 @@
 </template>
 
 <script>
-import { interpret } from "xstate";
+import { interpret } from "./statemachine";
 import FuzzySearch from "fuzzy-search";
 import initComboboxMachine from "./comboboxMachine";
 import { hideOnClickOutside } from "./events";
@@ -195,13 +195,18 @@ export default {
     created() {
         // Start service on component creation
         this.comboboxService
-            .onTransition(state => {
+            .subscribe(state => {
+                console.warn('sdkjfh')
+                if (this.id === 'combo-box1') {
+
+                    // console.log(state)
+                }
+                    console.log(state.value)
                 // Update the current state component data property with the next state
                 this.current = state;
                 // Update the context component data property with the updated context
                 this.context = state.context;
-            })
-            .start();
+            });
     },
 
     // Add the 'click outside of element' event listener
@@ -221,16 +226,17 @@ export default {
         const comboboxMachine = initComboboxMachine({
             ...this.multiple ? { values: new Set(this.value) } : { value: this.value }
         });
+        console.log(comboboxMachine, interpret(comboboxMachine))
 
         return {
             // Interpret the machine and store it in data
-            comboboxService: interpret(comboboxMachine),
+            comboboxService: interpret(comboboxMachine).start(),
 
             // Start with the machine's initial state
             current: comboboxMachine.initialState,
 
             // Start with the machine's initial context
-            context: comboboxMachine.context
+            context: comboboxMachine.initialState.context
         };
     },
 
@@ -242,10 +248,11 @@ export default {
 
         // Focus Event
         focus() {
-            if (this.current.matches("focused")) {
+            if (this.current.value.startsWith("focused")) {
                 this.send({ type: "OPEN" });
             } else {
                 this.send({ type: "FOCUS", target: this.$refs.editBox });
+                // this.send({ type: "OPEN" });
                 this.$emit("focus");
             }
         },
@@ -277,6 +284,7 @@ export default {
                         this.keyFunction(option) === this.keyFunction(value)
                 )
             ) {
+                console.log("not a valid option")
                 return;
             }
 
@@ -353,7 +361,7 @@ export default {
                 },
                 delete: () => {
                     if (
-                        this.current.matches("focused") &&
+                        this.current.value.startsWith("focused") &&
                         this.context.values.size
                     ) {
                         if (!this.context.filter.length) {
@@ -367,7 +375,7 @@ export default {
                     }
                 },
                 tab: () => {
-                    if (this.current.matches("focused")) {
+                    if (this.current.value.startsWith("focused")) {
                         this.blur();
                     } else {
                         this.focus();
@@ -381,6 +389,7 @@ export default {
                     }
                 },
                 enter: () => {
+                    e.preventDefault()
                     if (this.current.matches("focused.opened")) {
                         this.selectOption(
                             this.filteredOptions[this.context.highlightIndex]

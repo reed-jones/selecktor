@@ -11,7 +11,7 @@
             clearable
         />
 
-        <hr />
+        <!-- <hr />
 
         <label for="combo-box2">Combo Box Single Searchable</label>
         <Selektor
@@ -74,7 +74,7 @@
                 <h1 @click="select" :key="option.value">{{ option.label }}</h1>
             </template>
         </Selektor>
-        <button type="submit">Submit</button>
+        <button type="submit">Submit</button> -->
         </form>
     </div>
 </template>
