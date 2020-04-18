@@ -1,0 +1,26 @@
+{
+  "name": "selektor",
+  "version": "0.0.1",
+  "description": "A combobox for robots 🤖",
+  "main": "dist/selektor.umd.js",
+  "author": "Reed Jones <reedjones@reedjones.com>",
+  "license": "ISC",
+  "scripts": {
+    "serve": "vue-cli-service serve --public='' ./examples/main.js",
+    "watch": "vue-cli-service build --watch --target lib --name selektor ./src/index.js",
+    "build": "vue-cli-service build --target lib --name selektor ./src/index.js"
+  },
+  "devDependencies": {
+    "@vue/babel-preset-app": "^4.3.1",
+    "@vue/cli-plugin-babel": "^4.3.1",
+    "@vue/cli-service": "^4.3.1",
+    "sass": "^1.26.3",
+    "sass-loader": "^8.0.2",
+    "vue": "^2.6.11",
+    "vue-template-compiler": "^2.6.11"
+  },
+  "dependencies": {
+    "fuse.js": "^5.1.0",
+    "xstate": "^4.9.1"
+  }
+}
