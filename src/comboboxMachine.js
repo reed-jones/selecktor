@@ -60,6 +60,12 @@ export default (startContext = {}) =>
         CLEAR: {
           target: "unfocused",
           actions: "clearValues"
+        },
+        SET_VALUE: {
+          actions: 'setValue'
+        },
+        SET_VALUE_MULTI: {
+          actions: 'setValues'
         }
       },
       states: {
@@ -106,6 +112,10 @@ export default (startContext = {}) =>
 
         addValue: assign({
           values: (context, event) => context.values.add(event.value)
+        }),
+
+        setValues: assign({
+          values: (context, event) => event.value.constructor.name === 'Set' ? event.value : new Set(event.value)
         }),
 
         removeValue: assign({

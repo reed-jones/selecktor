@@ -1,13 +1,16 @@
 <template>
     <div
         class="rj-combobox"
+        :focused="current.matches('focused')"
         :class="{
-      open: current.matches('focused.opened'),
-      focused: current.matches('focused'),
-      unfocused: current.matches('unfocused'),
-      multiple,
-      single: !multiple,
-      searchable
+            open: current.matches('focused.opened'),
+            closed: current.matches('focused.closed'),
+            focused: current.matches('focused'),
+            unfocused: current.matches('unfocused'),
+            filtered: context.filter.length,
+            multiple,
+            single: !multiple,
+            searchable
     }"
     >
         <div class="rj-input-section" @click="focus">
@@ -80,34 +83,37 @@
         </div>
 
         <!-- Dropdown section -->
-        <ul v-if="current.matches('focused.opened')" class="rj-dropdown-list">
-            <slot
-                v-for="(option, idx) in filteredOptions"
-                name="option"
-                :option="option"
-                :select="_ => selectOption(option)"
-                :highlighted="context.highlightIndex === idx"
-                :selected="context.values.has(option) || Object.is(option, context.value)"
+            <ul
+                v-if="current.matches('focused.opened')"
+                class="rj-dropdown-list"
             >
-                <li
-                    class="rj-dropdown-item"
-                    :class="{
-            'rj-selected-item': context.values.has(option) || Object.is(option, context.value),
-            'rj-highlighted-item': context.highlightIndex === idx
-          }"
-                    :key="keyFunction(option)"
-                    @click="selectOption(option)"
-                >{{ labelFunction(option) }}</li>
-            </slot>
+                <slot
+                    v-for="(option, idx) in filteredOptions"
+                    name="option"
+                    :option="option"
+                    :select="_ => selectOption(option)"
+                    :highlighted="context.highlightIndex === idx"
+                    :selected="context.values.has(option) || Object.is(option, context.value)"
+                >
+                    <li
+                        class="rj-dropdown-item"
+                        ref="dropdownOption"
+                        :class="{
+                        'rj-selected-item': context.values.has(option) || Object.is(option, context.value),
+                        'rj-highlighted-item': context.highlightIndex === idx
+                    }"
+                        :key="keyFunction(option)"
+                        @click="selectOption(option)"
+                    >{{ labelFunction(option) }}</li>
+                </slot>
 
-            <li v-if="filteredOptions.length === 0" class="rj-dropdown-item">No matches Found</li>
-        </ul>
+                <li v-if="filteredOptions.length === 0" class="rj-dropdown-item rj-no-options" key="no-matches">No matches Found</li>
+            </ul>
     </div>
 </template>
 
 <script>
 import { interpret } from "xstate";
-// import Fuse from "fuse.js";
 import FuzzySearch from "fuzzy-search";
 import initComboboxMachine from "./comboboxMachine";
 import { hideOnClickOutside } from "./events";
@@ -146,6 +152,12 @@ export default {
 
         // keys of object to be searchable
         searchKeys: Array,
+
+        // Dropdown scroll behavior
+        scrollOptions: {
+            type: Object,
+            default: () => ({ block: "center" })
+        },
 
         // formatting function for display purposes
         labelFunction: {
@@ -202,11 +214,12 @@ export default {
     // Remove 'click outside of element' listener
     beforeDestroy() {
         this.removeClickListener();
+        this.comboboxService.stop();
     },
 
     data() {
         const comboboxMachine = initComboboxMachine({
-            //
+            ...this.multiple ? { values: new Set(this.value) } : { value: this.value }
         });
 
         return {
@@ -324,6 +337,7 @@ export default {
                                 this.filteredOptions.length) %
                             this.filteredOptions.length
                     });
+                    this.scrollDropdown();
                 },
                 down: () => {
                     this.focus();
@@ -335,17 +349,21 @@ export default {
                                 this.filteredOptions.length) %
                             this.filteredOptions.length
                     });
+                    this.scrollDropdown();
                 },
                 delete: () => {
                     if (
                         this.current.matches("focused") &&
                         this.context.values.size
                     ) {
-                        this.removeOption(
-                            [...this.context.values][
-                                this.context.values.size - 1
+                        if (!this.context.filter.length) {
+
+                            this.removeOption(
+                                [...this.context.values][
+                                    this.context.values.size - 1
                             ]
                         );
+                        }
                     }
                 },
                 tab: () => {
@@ -376,146 +394,178 @@ export default {
             actions[keysICareAbout[e.which]]();
         },
 
+        scrollDropdown() {
+            this.$nextTick(() => {
+                this.$refs.dropdownOption
+                    .find(a => [...a.classList].includes("rj-highlighted-item"))
+                    ?.scrollIntoView(this.scrollOptions);
+            });
+        },
+
         // dummy method. will get called on destroy
         removeClickListener() {}
+    },
+
+    watch: {
+        value(newValue) {
+            this.send({
+                type: this.multiple ? 'SET_VALUE_MULTI' : 'SET_VALUE',
+                value: newValue
+            })
+        }
     }
 };
-</script> <style lang="scss">
+</script>
+
+<style lang="scss">
+:root {
+    // keyboard nav, highlighted colour
+    --rj-colour-highlight: yellow;
+    // outside border radius
+    --rj-border-radius: 0.25rem;
+    // max height when open
+    --rj-dropdown-max-height: 150px;
+    --rj-border: 1px solid;
+    --rj-border-offset: -1px;
+}
+
 * {
     box-shadow: border-box;
 }
 /* Outer Wrapper */
 .rj-combobox {
-    border: 1px solid;
-    border-radius: 0.25rem;
+    border: var(--rj-border, 1px solid);
+    border-radius: var(--rj-border-radius, 0.25rem);
     text-align: left;
     position: relative;
     &.open {
         border-bottom-left-radius: 0;
         border-bottom-right-radius: 0;
+
+        .rj-action-btn {
+            transform: rotate(180deg);
+        }
     }
-    &.focused {
+
+    &[focused] {
         box-shadow: 0 0 5px blue;
     }
-}
 
-/* Input Section (upper section) */
-.rj-input-section {
-    display: flex;
-    justify-content: space-between;
-}
+    .rj {
+        /* Input Section (upper section) */
+        &-input-section {
+            display: flex;
+            justify-content: space-between;
+        }
 
-/* Selected Items */
-.rj-selected-items {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    width: 100%;
-    padding: 0.5rem;
-}
+        /* Selected Items */
+        &-selected-items {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            width: 100%;
+            padding: 0.5rem;
+        }
 
-/* Single & Multiple selection Wrappers */
-.rj-single-item,
-.rj-multiple-items {
-    flex: 1 0 auto;
-}
+        /* Single & Multiple selection Wrappers */
+        &-single-item,
+        &-multiple-items {
+            flex: 1 0 auto;
+        }
 
-.rj-multiple-items {
-    max-width: 95%;
-}
+        &-multiple-items {
+            max-width: 95%;
+        }
 
-/* Multiple Selection List */
-.rj-multiple-items-list {
-    margin: -0.5rem 0.5rem -0.5rem -0.5rem;
-    padding: 0;
-    list-style-type: none;
-    display: flex;
-    flex-flow: row wrap;
-}
+        /* Multiple Selection List */
+        &-multiple-items-list {
+            margin: -0.5rem 0.5rem -0.5rem -0.5rem;
+            padding: 0;
+            list-style-type: none;
+            display: flex;
+            flex-flow: row wrap;
+        }
 
-/* Mutiple Selecting Item 'tag' */
-.rj-multiple-item {
-    border: 1px dashed;
-    padding: 0.25rem;
-    margin: 0.25rem;
-    background: #eee;
-    display: flex;
-    align-items: center;
-    justify-content: flex-between;
-    white-space: nowrap;
+        /* Mutiple Selecting Item 'tag' */
+        &-multiple-item {
+            border: 1px dashed;
+            padding: 0.25rem;
+            margin: 0.25rem;
+            background: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: flex-between;
+            white-space: nowrap;
+        }
+        &-clear-button {
+            display: flex;
+            align-items: center;
+            justify-content: flex-between;
+            cursor: pointer;
+            margin-left: 0.5rem;
+        }
 
-    .rj-clear-button {
-        display: flex;
-        align-items: center;
-        justify-content: flex-between;
-        cursor: pointer;
-        margin-left: 0.5rem;
+        /* Filter or Search box */
+        &-filter-input {
+            width: 100%;
+            flex: 1 1 100%;
+            text-align: left;
+            border: none;
+            flex-shrink: auto;
+            font-size: 1rem;
+            padding: 0 0.25rem;
+            &:focus {
+                outline: none;
+            }
+        }
+
+        /* Right hand action icons */
+        &-action-btn {
+            display: flex;
+            flex-flow: row wrap;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 0 0.5rem;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        /* Dropdown Section */
+        &-dropdown-list {
+            position: absolute;
+            background: white;
+            margin: 0;
+            padding: 0;
+            border-bottom: var(--rj-border, 1px solid);
+            border-left: var(--rj-border, 1px solid);
+            border-right: var(--rj-border, 1px solid);
+            border-bottom-left-radius: var(--rj-border-radius, 0.25rem);
+            border-bottom-right-radius: var(--rj-border-radius, 0.25rem);
+            list-style-type: none;
+            max-height: var(--rj-dropdown-max-height, 150px);
+            overflow-y: auto;
+            /* Needs to match the width of the parents border */
+            left: var(--rj-border-offset, -1px);
+            right: var(--rj-border-offset, -1px);
+            z-index: 10;
+        }
+
+        /* Dropdown Section Item */
+        &-dropdown-item {
+            padding: 0.25rem 0.5rem;
+            cursor: pointer;
+            &:hover {
+                background: #bbb;
+            }
+        }
+
+        &-selected-item {
+            background: #ddd;
+        }
+        &-highlighted-item {
+            background: var(--rj-colour-highlight);
+        }
     }
-}
-
-/* Filter or Search box */
-.rj-filter-input {
-    width: 100%;
-    flex: 1 1 100%;
-    text-align: left;
-    border: none;
-    flex-shrink: auto;
-    font-size: 1rem;
-    padding: 0 0.25rem;
-    &:focus {
-        outline: none;
-    }
-}
-
-/* Right hand action icons */
-.rj-action-btn {
-    display: flex;
-    flex-flow: row wrap;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 0 0.5rem;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.open .rj-action-btn {
-    transform: rotate(180deg);
-}
-
-/* Dropdown Section */
-.rj-dropdown-list {
-    position: absolute;
-    background: white;
-    margin: 0;
-    padding: 0;
-    border-bottom: 1px solid;
-    border-left: 1px solid;
-    border-right: 1px solid;
-    border-bottom-left-radius: 0.25rem;
-    border-bottom-right-radius: 0.25rem;
-    list-style-type: none;
-    // max-height: 150px;
-    overflow-y: auto;
-    /* Needs to match the width of the parents border */
-    left: -1px;
-    right: -1px;
-    z-index: 10;
-}
-
-/* Dropdown Section Item */
-.rj-dropdown-item {
-    padding: 0.25rem 0.5rem;
-    cursor: pointer;
-    &:hover {
-        background: #bbb;
-    }
-}
-
-.rj-selected-item {
-    background: #ddd;
-}
-.rj-highlighted-item {
-    background: yellow;
 }
 </style>
