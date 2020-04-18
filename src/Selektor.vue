@@ -119,8 +119,8 @@ import FuzzySearch from "fuzzy-search";
 import initComboboxMachine from "./comboboxMachine";
 import { hideOnClickOutside } from "./events";
 
-import ArrowIcon from "./icons/ArrowIcon";
-import CloseIcon from "./icons/CloseIcon";
+import ArrowIcon from "./icons/ArrowIcon.vue";
+import CloseIcon from "./icons/CloseIcon.vue";
 
 export default {
     components: {

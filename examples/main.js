@@ -2,7 +2,8 @@ import Vue from "vue";
 import App from "./App.vue";
 
 // prod
-import Selektor from '..'
+// import Selektor from '..'
+import Selektor from '../dist/selektor.esm.js'
 import '../dist/selektor.css'
 
 // dev

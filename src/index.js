@@ -1,4 +1,4 @@
-import Selektor from './Selektor'
+import Selektor from './Selektor.vue'
 
 export default {
     install(Vue, options = {}) {
