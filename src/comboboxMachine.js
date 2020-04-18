@@ -1,5 +1,45 @@
 import { assign, createMachine } from "./statemachine";
 
+const focusStates = {
+  closed: {
+    entry: ["focusElement"],
+    on: {
+      OPEN: {
+        target: "opened"
+      }
+    }
+  },
+  opened: {
+    entry: ["focusElement", "clearHighlightedIndex"],
+    // exit: ['focusElement'],
+    on: {
+      CLOSE: {
+        target: "closed"
+      },
+
+      OPEN: {
+        target: "opened"
+      },
+      FILTER: {
+        target: "opened",
+        actions: "setFilter"
+      },
+      SELECT: {
+        target: "closed",
+        actions: ["setValue", "clearFilter"]
+      },
+      SELECT_MULTI: {
+        target: "opened",
+        actions: ["addValue", "clearFilter"]
+      },
+
+      SET_HIGHLIGHT_INDEX: {
+        target: "opened",
+        actions: "setHighlightedIndex"
+      }
+    }
+  }
+}
 export default (startContext = {}) =>
   createMachine(
     {
@@ -60,46 +100,9 @@ export default (startContext = {}) =>
               target: "focused.closed",
               actions: "removeValue"
             }
-          }
+          },
+          states: focusStates
         },
-        "focused.closed": {
-          entry: ["focusElement"],
-          on: {
-            OPEN: {
-              target: "focused.opened"
-            }
-          }
-        },
-        "focused.opened": {
-          entry: ["focusElement", "clearHighlightedIndex"],
-          // exit: ['focusElement'],
-          on: {
-            CLOSE: {
-              target: "focused.closed"
-            },
-
-        OPEN: {
-          target: "focused.opened"
-        },
-            FILTER: {
-              target: "focused.opened",
-              actions: "setFilter"
-            },
-            SELECT: {
-              target: "focused.closed",
-              actions: ["setValue", "clearFilter"]
-            },
-            SELECT_MULTI: {
-              target: "focused.opened",
-              actions: ["addValue", "clearFilter"]
-            },
-
-            SET_HIGHLIGHT_INDEX: {
-              target: "focused.opened",
-              actions: "setHighlightedIndex"
-            }
-          }
-        }
       }
     },
     {
