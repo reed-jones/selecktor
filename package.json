@@ -2,7 +2,7 @@
   "name": "selektor",
   "version": "0.0.1",
   "description": "A combobox for robots 🤖",
-  "main": "dist/selektor.umd.js",
+  "main": "dist/selektor.umd.min.js",
   "author": "Reed Jones <reedjones@reedjones.com>",
   "license": "ISC",
   "scripts": {

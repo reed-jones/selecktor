@@ -1,7 +1,13 @@
 import Vue from "vue";
 import App from "./App.vue";
 
-import Selektor from '../src'
+// prod
+import Selektor from '..'
+import '../dist/selektor.css'
+
+// dev
+// import Selektor from '../src'
+
 Vue.use(Selektor)
 
 Vue.config.productionTip = false;
