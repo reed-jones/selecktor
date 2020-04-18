@@ -15,8 +15,8 @@
                 <div class="rj-single-item" v-if="!multiple">
                     &nbsp;
                     <template
-                        v-if="context.value && (!searchable || !current.matches('focused'))"
-                    >{{ displayFunction(context.value) }}</template>
+                        v-if="context.value && (!searchable || !current.matches('focused.opened'))"
+                    >{{ labelFunction(context.value) }}</template>
                 </div>
 
                 <div class="rj-multiple-items" v-if="multiple">
@@ -28,7 +28,7 @@
                             :remove="_ => removeOption(val)"
                         >
                             <li :key="keyFunction(val)" class="rj-multiple-item">
-                                {{ displayFunction(val) }}
+                                {{ labelFunction(val) }}
                                 <span
                                     class="rj-clear-button"
                                     @click.stop="removeOption(val)"
@@ -44,9 +44,10 @@
                     type="text"
                     :id="id"
                     ref="editBox"
+                    @focus="open"
+                    @blur="close"
                     class="rj-filter-input"
                     :placeholder="empty ? placeholder : ''"
-                    @focus="focus"
                     @keydown="handleKeydown"
                     :readonly="!searchable"
                     :value="context.filter"
@@ -70,7 +71,7 @@
                     <div
                         v-else
                         class="rj-action-btn"
-                        @click="current.matches('focused') ? blur() : focus()"
+                        @click="current.matches('focused.opened') ? close() : focus()"
                     >
                         <ArrowIcon />
                     </div>
@@ -96,7 +97,7 @@
           }"
                     :key="keyFunction(option)"
                     @click="selectOption(option)"
-                >{{ displayFunction(option.label) }}</li>
+                >{{ labelFunction(option) }}</li>
             </slot>
 
             <li v-if="filteredOptions.length === 0" class="rj-dropdown-item">No matches Found</li>
@@ -106,7 +107,8 @@
 
 <script>
 import { interpret } from "xstate";
-import Fuse from "fuse.js";
+// import Fuse from "fuse.js";
+import FuzzySearch from "fuzzy-search";
 import initComboboxMachine from "./comboboxMachine";
 import { hideOnClickOutside } from "./events";
 
@@ -122,6 +124,7 @@ export default {
         // Dom passthrough attributes
         id: String,
         name: String,
+        placeholder: String,
 
         // Current Selected Value
         value: [String, Object, Array],
@@ -135,22 +138,25 @@ export default {
         // in multiple mode, close after the first selection
         closeOnSelect: Boolean,
 
+        // type-to-search
         searchable: Boolean,
 
+        // 'clearable' when option(s) have been selected
         clearable: Boolean,
 
-        fuseOptions: Object,
+        // keys of object to be searchable
+        searchKeys: Array,
 
-        placeholder: String,
-
-        displayFunction: {
+        // formatting function for display purposes
+        labelFunction: {
             type: Function,
-            default: option => (option && option.label) || option
+            default: option => option.label
         },
 
+        // formatting function for the key & value
         keyFunction: {
             type: Function,
-            default: option => (option && option.key) || option
+            default: option => option.key
         }
     },
 
@@ -160,17 +166,11 @@ export default {
                 return this.options;
             }
 
-            const fuseOptions = this.fuseOptions || {
-                keys: Object.keys(this.options.find(a => true)),
-                threshold: 0.3
-            };
-
-            const fuse = new Fuse(this.options, fuseOptions);
-
-            // Now search for 'Man'
-            const result = fuse.search(this.context.filter).map(a => a.item);
-
-            return result;
+            return new FuzzySearch(
+                this.options,
+                this.searchKeys ?? Object.keys(this.options.find(a => true)),
+                { sort: true, caseSensitive: false }
+            ).search(this.context.filter);
         },
 
         empty() {
@@ -243,6 +243,14 @@ export default {
             this.$emit("blur");
         },
 
+        close() {
+            this.send({ type: "CLOSE" });
+        },
+
+        open() {
+            this.send({ type: "OPEN" });
+        },
+
         clear() {
             this.send({ type: "CLEAR" });
             this.emitInput();
@@ -250,7 +258,12 @@ export default {
 
         selectOption(value) {
             // ensure its an available option
-            if (!this.filteredOptions.some(a => JSON.stringify(a) === JSON.stringify(value))) {
+            if (
+                !this.filteredOptions.some(
+                    option =>
+                        this.keyFunction(option) === this.keyFunction(value)
+                )
+            ) {
                 return;
             }
 
@@ -260,7 +273,7 @@ export default {
             this.emitInput();
 
             if (this.multiple && this.closeOnSelect) {
-                this.send({ type: 'CLOSE' })
+                this.send({ type: "CLOSE" });
             }
         },
 
@@ -271,7 +284,10 @@ export default {
 
         setFilter(event) {
             this.send({ type: "FILTER", value: event.target.value });
-            this.send({ type: "SET_HIGHLIGHT_INDEX", value: -1 });
+            this.send({
+                type: "SET_HIGHLIGHT_INDEX",
+                value: Math.max(this.context.highlightIndex, 0)
+            });
         },
 
         emitInput() {
@@ -287,50 +303,72 @@ export default {
                 8: "delete",
                 9: "tab",
                 13: "enter",
-                27: 'esc',
+                27: "esc",
                 38: "up",
                 40: "down"
             };
 
-                this.focus();
-
             if (!(e.which in keysICareAbout)) {
+                this.focus();
                 return;
             }
 
             const actions = {
-                up: () =>
+                up: () => {
+                    this.focus();
                     this.send({
                         type: "SET_HIGHLIGHT_INDEX",
-                        value: ((Math.max(this.context.highlightIndex, 0) - 1) + this.filteredOptions.length) % this.filteredOptions.length
-                    }),
-                down: () =>
+                        value:
+                            (Math.max(this.context.highlightIndex, 0) -
+                                1 +
+                                this.filteredOptions.length) %
+                            this.filteredOptions.length
+                    });
+                },
+                down: () => {
+                    this.focus();
                     this.send({
                         type: "SET_HIGHLIGHT_INDEX",
-                        value: (this.context.highlightIndex + 1) % this.filteredOptions.length
-                    }),
+                        value:
+                            (this.context.highlightIndex +
+                                1 +
+                                this.filteredOptions.length) %
+                            this.filteredOptions.length
+                    });
+                },
                 delete: () => {
-                    this.current.matches("focused.closed") &&
-                        this.context.values.size &&
+                    if (
+                        this.current.matches("focused") &&
+                        this.context.values.size
+                    ) {
                         this.removeOption(
                             [...this.context.values][
                                 this.context.values.size - 1
                             ]
                         );
+                    }
                 },
                 tab: () => {
-                    if (this.current.matches("focused.opened")) {
+                    if (this.current.matches("focused")) {
                         this.blur();
+                    } else {
+                        this.focus();
                     }
                 },
                 esc: () => {
-//
+                    if (this.current.matches("focused.opened")) {
+                        this.close();
+                    } else {
+                        this.focus();
+                    }
                 },
                 enter: () => {
                     if (this.current.matches("focused.opened")) {
                         this.selectOption(
                             this.filteredOptions[this.context.highlightIndex]
                         );
+                    } else {
+                        this.focus();
                     }
                 }
             };

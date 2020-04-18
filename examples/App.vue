@@ -59,7 +59,7 @@
       searchable
     >
       <template #indicator="{ open, blur, focus }">
-        <h1 @click="open ? blur() : focus()">{{ open ? 'Is Open' : 'Is Closed' }}</h1>
+        <h1 @click="open ? blur() : focus()">{{ open ? 'CLOSE' : 'OPEN' }}</h1>
       </template>
 
       <template #tag="{ option, remove }">

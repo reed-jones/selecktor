@@ -20,7 +20,7 @@
     "vue-template-compiler": "^2.6.11"
   },
   "dependencies": {
-    "fuse.js": "^5.1.0",
+    "fuzzy-search": "^3.2.1",
     "xstate": "^4.9.1"
   }
 }

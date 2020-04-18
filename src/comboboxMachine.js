@@ -2,6 +2,7 @@ import { Machine, assign } from "xstate";
 
 const focusedStates = {
   closed: {
+    entry: ['focusElement'],
     on: {
       OPEN: {
         target: "opened",
@@ -10,9 +11,11 @@ const focusedStates = {
     }
   },
   opened: {
+    entry: ['focusElement'],
+    // exit: ['focusElement'],
     on: {
       CLOSE: {
-        target: "closed"
+        target: "closed",
       },
       FILTER: {
         target: "opened",
@@ -26,6 +29,7 @@ const focusedStates = {
         target: "opened",
         actions: ["addValue", "clearFilter"]
       },
+
       SET_HIGHLIGHT_INDEX: {
         target: 'opened',
         actions: 'setHighlightedIndex'
@@ -53,11 +57,6 @@ export default (startContext = {}) =>
         ...startContext
       },
       on: {
-        REMOVE_MULTI: {
-          target: "unfocused",
-          actions: "removeValue"
-        },
-
         CLEAR: {
           target: "unfocused",
           actions: "clearValues"
@@ -66,7 +65,11 @@ export default (startContext = {}) =>
       states: {
         unfocused: {
           on: {
-            FOCUS: "focused"
+            FOCUS: "focused",
+            REMOVE_MULTI: {
+              target: "focused.closed",
+              actions: "removeValue"
+            },
           }
         },
         focused: {
@@ -76,8 +79,12 @@ export default (startContext = {}) =>
           on: {
             BLUR: {
               target: "unfocused",
-              actions: "clearFilter"
-            }
+              actions: ["clearFilter", "blurElement"]
+            },
+            REMOVE_MULTI: {
+              target: "focused.closed",
+              actions: "removeValue"
+            },
           },
           states: focusedStates
         }
@@ -128,7 +135,8 @@ export default (startContext = {}) =>
           focusable: (context, event) => event.target ?? context.focusable
         }),
 
-        focusElement: (context, event) => context.focusable?.focus()
+        focusElement: (context, event) => context.focusable?.focus(),
+        blurElement: (context, event) => context.focusable?.blur()
       }
     }
   );
