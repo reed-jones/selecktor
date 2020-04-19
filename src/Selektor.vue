@@ -23,9 +23,9 @@
                 </div>
 
                 <div class="rj-multiple-items" v-if="multiple">
-                    <ul v-if="context.values.size" class="rj-multiple-items-list">
+                    <ul v-if="context.value.size" class="rj-multiple-items-list">
                         <slot
-                            v-for="val in context.values"
+                            v-for="val in context.value"
                             name="tag"
                             :option="val"
                             :remove="_ => removeOption(val)"
@@ -50,8 +50,8 @@
                     class="rj-filter-input"
                     @focus="open"
                     @blur="close"
-                    :required="required && empty"
-                    :readonly="!searchable && !(required && empty)"
+                    :required="current.matches('unfocused') && required && empty"
+                    :readonly="!searchable && !current.matches('unfocused')"
                     :placeholder="empty ? placeholder : ''"
                     @keydown="handleKeydown"
                     :value="context.filter"
@@ -89,18 +89,18 @@
                 class="rj-dropdown-list"
             >
                 <slot
-                    v-for="(option, idx) in filteredOptions"
+                    v-for="(option, idx) in context.options"
                     name="option"
                     :option="option"
                     :select="_ => selectOption(option)"
                     :highlighted="context.highlightIndex === idx"
-                    :selected="context.values.has(option) || Object.is(option, context.value)"
+                    :selected="multiple && context.value.has(option) || Object.is(option, context.value)"
                 >
                     <li
                         class="rj-dropdown-item"
                         ref="dropdownOption"
                         :class="{
-                        'rj-selected-item': context.values.has(option) || Object.is(option, context.value),
+                        'rj-selected-item': multiple && context.value.has(option) || Object.is(option, context.value),
                         'rj-highlighted-item': context.highlightIndex === idx
                     }"
                         :key="keyFunction(option)"
@@ -108,14 +108,13 @@
                     >{{ labelFunction(option) }}</li>
                 </slot>
 
-                <li v-if="filteredOptions.length === 0" class="rj-dropdown-item rj-no-options" key="no-matches">No matches Found</li>
+                <li v-if="context.options.length === 0" class="rj-dropdown-item rj-no-options" key="no-matches">No matches Found</li>
             </ul>
     </div>
 </template>
 
 <script>
 import { interpret } from "xstate";
-import FuzzySearch from "fuzzy-search";
 import initComboboxMachine from "./comboboxMachine";
 import { hideOnClickOutside } from "./events";
 
@@ -175,20 +174,8 @@ export default {
     },
 
     computed: {
-        filteredOptions() {
-            if (!this.searchable || !this.context.filter) {
-                return this.options;
-            }
-
-            return new FuzzySearch(
-                this.options,
-                this.searchKeys ?? Object.keys(this.options.find(a => true)),
-                { sort: true, caseSensitive: false }
-            ).search(this.context.filter);
-        },
-
         empty() {
-            return this.multiple ? this.context.values.size === 0 : !this.context.value
+            return this.multiple ? this.context.value.size === 0 : !this.context.value
         }
     },
 
@@ -218,9 +205,7 @@ export default {
     },
 
     data() {
-        const comboboxMachine = initComboboxMachine({
-            ...this.multiple ? { values: new Set(this.value) } : { value: this.value }
-        });
+        const comboboxMachine = initComboboxMachine.bind(this)({});
 
         return {
             // Interpret the machine and store it in data
@@ -246,14 +231,12 @@ export default {
                 this.send({ type: "OPEN" });
             } else {
                 this.send({ type: "FOCUS", target: this.$refs.editBox });
-                this.$emit("focus");
             }
         },
 
         // Blur Event
         blur() {
             this.send({ type: "BLUR" });
-            this.$emit("blur");
         },
 
         close() {
@@ -266,13 +249,12 @@ export default {
 
         clear() {
             this.send({ type: "CLEAR" });
-            this.emitInput();
         },
 
         selectOption(value) {
             // ensure its an available option
             if (
-                !this.filteredOptions.some(
+                !this.context.options.some(
                     option =>
                         this.keyFunction(option) === this.keyFunction(value)
                 )
@@ -280,87 +262,74 @@ export default {
                 return;
             }
 
-            const type = this.multiple ? "SELECT_MULTI" : "SELECT";
-            this.send({ type, value });
-
-            this.emitInput();
-
-            if (this.multiple && this.closeOnSelect) {
-                this.send({ type: "CLOSE" });
-            }
+            this.send({ type: 'SELECT', value });
         },
 
         removeOption(value) {
-            this.send({ type: "REMOVE_MULTI", value });
-            this.emitInput();
+            this.send({ type: "REMOVE", value });
         },
 
         setFilter(event) {
             this.send({ type: "FILTER", value: event.target.value });
-            this.send({
-                type: "SET_HIGHLIGHT_INDEX",
-                value: Math.max(this.context.highlightIndex, 0)
-            });
-        },
-
-        emitInput() {
-            const value = this.multiple
-                ? [...this.context.values]
-                : this.context.value;
-
-            this.$emit("input", value);
         },
 
         handleKeydown(e) {
             const keysICareAbout = {
                 8: "delete",
                 9: "tab",
+                16: 'shift',
+                17: 'ctrl',
+                18: 'alt',
+                91: 'left-command',
+                93: 'right-command',
                 13: "enter",
                 27: "esc",
                 38: "up",
                 40: "down"
             };
 
+            if ([16,17,18, 91, 93].includes(e.which)) {
+                // no action for modifier keys
+                return
+            }
+
             if (!(e.which in keysICareAbout)) {
-                this.focus();
-                return;
+                return this.focus();
             }
 
             const actions = {
                 up: () => {
-                    this.focus();
+                    this.focus()
                     this.send({
                         type: "SET_HIGHLIGHT_INDEX",
                         value:
                             (Math.max(this.context.highlightIndex, 0) -
                                 1 +
-                                this.filteredOptions.length) %
-                            this.filteredOptions.length
+                                this.context.options.length) %
+                            this.context.options.length
                     });
-                    this.scrollDropdown();
+
                 },
                 down: () => {
-                    this.focus();
+                    this.focus()
                     this.send({
                         type: "SET_HIGHLIGHT_INDEX",
                         value:
                             (this.context.highlightIndex +
                                 1 +
-                                this.filteredOptions.length) %
-                            this.filteredOptions.length
+                                this.context.options.length) %
+                            this.context.options.length
                     });
-                    this.scrollDropdown();
                 },
                 delete: () => {
                     if (
                         this.current.matches("focused") &&
-                        this.context.values.size
+                        this.context.value.size
                     ) {
                         if (!this.context.filter.length) {
-
                             this.removeOption(
-                                [...this.context.values][
-                                    this.context.values.size - 1
+                                [...this.context.value][
+                                    this.context.value.size - 1
                             ]
                         );
                         }
@@ -369,8 +338,6 @@ export default {
                 tab: () => {
                     if (this.current.matches("focused")) {
                         this.blur();
-                    } else {
-                        this.focus();
                     }
                 },
                 esc: () => {
@@ -381,9 +348,10 @@ export default {
                     }
                 },
                 enter: () => {
+                    e.preventDefault()
                     if (this.current.matches("focused.opened")) {
                         this.selectOption(
-                            this.filteredOptions[this.context.highlightIndex]
+                            this.context.options[this.context.highlightIndex]
                         );
                     } else {
                         this.focus();
@@ -394,14 +362,6 @@ export default {
             actions[keysICareAbout[e.which]]();
         },
 
-        scrollDropdown() {
-            this.$nextTick(() => {
-                this.$refs.dropdownOption
-                    .find(a => [...a.classList].includes("rj-highlighted-item"))
-                    ?.scrollIntoView(this.scrollOptions);
-            });
-        },
-
         // dummy method. will get called on destroy
         removeClickListener() {}
     },
@@ -409,7 +369,7 @@ export default {
     watch: {
         value(newValue) {
             this.send({
-                type: this.multiple ? 'SET_VALUE_MULTI' : 'SET_VALUE',
+                type: 'SET_VALUE',
                 value: newValue
             })
         }

@@ -3,11 +3,11 @@ import App from "./App.vue";
 
 // prod
 // import Selektor from '..'
-import Selektor from '../dist/selektor.esm.js'
-import '../dist/selektor.css'
+// import Selektor from '../dist/selektor.esm.js'
+// import '../dist/selektor.css'
 
 // dev
-// import Selektor from '../src'
+import Selektor from '../src'
 
 Vue.use(Selektor)
 

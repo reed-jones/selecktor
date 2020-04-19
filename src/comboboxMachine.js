@@ -1,97 +1,116 @@
 import { Machine, assign } from "xstate";
+import FuzzySearch from "fuzzy-search";
 
-const focusedStates = {
-  closed: {
-    entry: ['focusElement'],
-    on: {
-      OPEN: {
-        target: "opened",
-        actions: ['clearHighlightedIndex']
+export default function() {
+  const focusedStates = {
+    closed: {
+      entry: ["focusElement"],
+      on: {
+        OPEN: {
+          target: "opened",
+          actions: ["clearHighlightedIndex"]
+        },
+
+        // vue data binding can add elements while its closed
+        SELECT: {
+          target: "closed",
+          actions: "setValue"
+        },
+      }
+    },
+    opened: {
+      entry: ["focusElement"],
+
+      on: {
+        CLOSE: "closed",
+
+        FILTER: {
+          target: "opened",
+          actions: ["setFilter", "keepHighlightedIndexVisible"]
+        },
+
+        SELECT: [
+          // single mode || close-on-select & multiple mode
+          {
+            target: "closed",
+            cond: (context, event) => !this.multiple || this.closeOnSelect,
+            actions: ["selectValue", "emitValue", "clearFilter"]
+          },
+
+          // multi mode, leave open on select
+          { target: "opened", actions: ["selectValue", "emitValue", "clearFilter"] }
+        ],
+
+        SET_HIGHLIGHT_INDEX: {
+          target: "opened",
+          actions: ["focusElement", "setHighlightedIndex", "scrollToSelection"]
+        },
+
+        REMOVE: {
+          target: "closed",
+          actions: ["removeValue", "emitValue"]
+        }
       }
     }
-  },
-  opened: {
-    entry: ['focusElement'],
-    // exit: ['focusElement'],
-    on: {
-      CLOSE: {
-        target: "closed",
-      },
-      FILTER: {
-        target: "opened",
-        actions: "setFilter"
-      },
-      SELECT: {
-        target: "closed",
-        actions: ["setValue", "clearFilter"]
-      },
-      SELECT_MULTI: {
-        target: "opened",
-        actions: ["addValue", "clearFilter"]
-      },
+  };
 
-      SET_HIGHLIGHT_INDEX: {
-        target: 'opened',
-        actions: 'setHighlightedIndex'
-      }
-    }
-  }
-};
-
-export default (startContext = {}) =>
-  Machine(
+  return Machine(
     {
-      id: "inputfield",
+      id: "root",
+
       initial: "unfocused",
+
       context: {
-        // Single Value
-        value: null,
-        // Multi Values
-        values: new Set(),
+        // Single Value: null, multiple value New Set
+        value: this.multiple
+          ? this.value instanceof Set
+            ? this.value
+            : new Set(this.value)
+          : this.value,
+
+        options: this.options,
+
         // user searchable filter
         filter: "",
+
         // Keyboard Highlight Index
         highlightIndex: -1,
+
         // 'focusable' input element
-        focusable: null,
-        ...startContext
+        focusable: null
       },
       on: {
         CLEAR: {
-          target: "unfocused",
-          actions: "clearValues"
+          actions: ["clear", "emitValue"]
         },
+
+        REMOVE: {
+          actions: ["removeValue", "emitValue"]
+        },
+
         SET_VALUE: {
-          actions: 'setValue'
-        },
-        SET_VALUE_MULTI: {
-          actions: 'setValues'
+          actions: "setValue"
         }
       },
       states: {
         unfocused: {
           on: {
-            FOCUS: "focused",
-            REMOVE_MULTI: {
-              target: "focused.closed",
-              actions: "removeValue"
-            },
+            FOCUS: "focused"
           }
         },
         focused: {
-          id: "edited",
           initial: "opened",
-          entry: ["setFocusableElement", "focusElement", 'clearHighlightedIndex'],
+
+          entry: ["setFocusableElement", "focusElement"],
+          exit: ["blurElement"],
+
           on: {
             BLUR: {
               target: "unfocused",
               actions: ["clearFilter", "blurElement"]
-            },
-            REMOVE_MULTI: {
-              target: "focused.closed",
-              actions: "removeValue"
-            },
+            }
           },
+
           states: focusedStates
         }
       }
@@ -99,54 +118,113 @@ export default (startContext = {}) =>
     {
       actions: {
         setFilter: assign({
-          filter: (context, event) => event.value || ""
+          filter: (context, event) => event.value || "",
+          options: (context, event) => {
+            if (!this.searchable || !event.value) {
+              return this.options;
+            }
+
+            return new FuzzySearch(
+              this.options,
+              this.searchKeys ?? Object.keys(this.options.find(a => true)),
+              { sort: true, caseSensitive: false }
+            ).search(event.value);
+          }
         }),
 
         clearFilter: assign({
-          filter: (context, event) => ""
-        }),
-
-        setValue: assign({
-          value: (context, event) => event.value
-        }),
-
-        addValue: assign({
-          values: (context, event) => context.values.add(event.value)
-        }),
-
-        setValues: assign({
-          values: (context, event) => event.value.constructor.name === 'Set' ? event.value : new Set(event.value)
-        }),
-
-        removeValue: assign({
-          values: (context, event) => {
-            context.values.delete(event.value);
-            return context.values;
-          }
-        }),
-
-        clearValues: assign({
-          values: (context, event) => new Set(),
-          value: null,
-          filter: ""
+          filter: (context, event) => "",
+          options: (context, event) => this.options
         }),
 
         setHighlightedIndex: assign({
-          highlightIndex: (context, event) => {
-            return event.value
-          }
+          highlightIndex: (context, event) => event.value
         }),
 
         clearHighlightedIndex: assign({
           highlightIndex: (context, event) => -1
         }),
 
+        keepHighlightedIndexVisible: assign({
+          highlightIndex: (context, event) =>
+            Math.min(
+              Math.max(context.highlightIndex, 0),
+              context.options.length - 1
+            )
+        }),
+
+        scrollToSelection: (context, event) => {
+          this.$nextTick(() => {
+            this.$nextTick(() => {
+              this.$refs.dropdownOption
+                .find(a => [...a.classList].includes("rj-highlighted-item"))
+                ?.scrollIntoView(this.scrollOptions);
+            });
+         });
+        },
+
+        setValue: assign({
+          value: (context, event) => {
+            // single mode
+            if (!this.multiple) {
+              return event.value;
+            }
+
+            // multiple mode
+            return event.value instanceof Set
+              ? event.value
+              : new Set(event.value);
+          }
+        }),
+
+        selectValue: assign({
+          value: (context, event) => {
+            if (!this.multiple) {
+              return event.value;
+            }
+
+            return context.value.add(event.value);
+          }
+        }),
+
+        removeValue: assign({
+          value: (context, event) => {
+            if (!this.multiple) {
+              return null;
+            }
+
+            context.value.delete(event.value);
+            return context.value;
+          }
+        }),
+
+        clear: assign({
+          value: (context, event) => (!this.multiple ? null : new Set()),
+          filter: () => "",
+          highlightIndex: () => -1
+        }),
+
+        emitValue: (context, event) => {
+          const value = this.multiple
+            ? [...context.value]
+            : context.value
+
+            this.$emit("input", value);
+        },
+
         setFocusableElement: assign({
           focusable: (context, event) => event.target ?? context.focusable
         }),
 
-        focusElement: (context, event) => context.focusable?.focus(),
-        blurElement: (context, event) => context.focusable?.blur()
-      }
+        focusElement: (context, event) => {
+          context.focusable?.focus();
+          this.$emit("focus");
+        },
+        blurElement: (context, event) => {
+          context.focusable?.blur();
+          this.$emit("blur");
+        }
+      },
     }
   );
+}

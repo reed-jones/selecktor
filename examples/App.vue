@@ -1,51 +1,51 @@
 <template>
     <div id="app">
-      <form>
-        <label for="combo-box1">Combo Box Single</label>
+      <form @submit.prevent>
+        <label for="combo-box1">Required Clearable - chosen: {{ value1 }}</label>
         <Selektor
             placeholder="Clearable!"
             id="combo-box1"
             name="combo-box1"
-            v-model="value"
-            :options="options"
+            v-model="value1"
+            :options="options1"
+            required
             clearable
         />
 
         <hr />
 
-        <label for="combo-box2">Combo Box Single Searchable</label>
+        <label for="combo-box2">Required Searchable - chosen: {{ value2 }}</label>
         <Selektor
             placeholder="Search..."
             id="combo-box2"
             name="combo-box2"
-            v-model="value"
-            :options="options"
+            v-model="value2"
+            :options="options2"
             required
             searchable
         />
 
         <hr />
 
-        <label for="combo-box3">Combo Box Multiple</label>
+        <label for="combo-box3">Multiple Clearable Close-On-Select - chosen: {{ value3 }}</label>
         <Selektor
             id="combo-box3"
             name="combo-box3"
-            v-model="values"
-            :options="options"
-            multiple
-            required
+            v-model="value3"
+            :options="options3"
             :close-on-select="true"
+            multiple
             clearable
         />
 
         <hr />
 
-        <label for="combo-box4">Combo Box Multiple Searchable</label>
+        <label for="combo-box4">Multiple Required Searchable - chosen: {{ value4 }}</label>
         <Selektor
             id="combo-box4"
             name="combo-box4"
-            v-model="values2"
-            :options="options"
+            v-model="value4"
+            :options="options4"
             multiple
             required
             searchable
@@ -53,7 +53,7 @@
 
         <hr />
 
-        <label for="combo-box5">Combo Box Multiple Searchable - Slots</label>
+        <!-- <label for="combo-box5">Combo Box Multiple Searchable - Slots</label>
         <Selektor
             id="combo-box5"
             name="combo-box5"
@@ -73,7 +73,7 @@
             <template #option="{ option, select }">
                 <h1 @click="select" :key="option.value">{{ option.label }}</h1>
             </template>
-        </Selektor>
+        </Selektor> -->
         <button type="submit">Submit</button>
         </form>
     </div>
@@ -92,14 +92,23 @@ const options = [
     { key: "nine", label: "Option Nine" },
     { key: "ten", label: "Option Ten" }
 ];
+
+const options1 = options.slice()
+const options2 = options.slice()
+const options3 = options.slice()
+const options4 = options.slice()
 export default {
     data: _ => ({
-        value: options[0],
-        values: options.slice(1,3),
+        value1: options1[0],
+        value2: null,
+        value3: options3.slice(1,3),
+        value4: null,
 
-        values2: options.slice(1,3),
-        options
-    })
+        options1,
+        options2,
+        options3,
+        options4
+    }),
 };
 </script>
 
